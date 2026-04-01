@@ -1,0 +1,42 @@
+# ============= 操作系统和编辑器 =============
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ============= Gradle 构建系统 =============
+.gradle/
+build/
+local.properties
+
+# ============= Kotlin =============
+.kotlin/
+
+# ============= Android Studio / IntelliJ IDEA =============
+*.iml
+.idea/
+*.ipr
+*.iws
+out/
+
+# ============= 编译输出文件 =============
+*.apk
+*.aab
+output-metadata.json
+
+# ============= 原生代码构建 (C/C++) =============
+.externalNativeBuild/
+.cxx/
+obj/
+
+# ============= Android Studio 调试文件 =============
+captures/
+*.hprof
+.navigation/
+
+# ============= 签名文件和敏感信息 =============
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+google-services.json

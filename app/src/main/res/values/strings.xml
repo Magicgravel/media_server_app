@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Media Server App</string>
+    <string name="start_service">Start Streaming</string>
+    <string name="stop_service">Stop Streaming</string>
+    <string name="service_notification_title">Media Streaming</string>
+    <string name="service_notification_text">Streaming audio and video</string>
+</resources>
