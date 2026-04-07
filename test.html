@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>音频流 WebSocket 测试</title>
+</head>
+<body>
+    <h2>连接状态: <span id="status" style="color:red;">未连接</span></h2>
+    <input type="text" id="wsInput" value="ws://192.168.1.x:8080" style="width: 250px;">
+    <button onclick="connect()">连接</button>
+    <button onclick="disconnect()">断开</button>
+    <hr>
+    
+    <div style="display: flex; gap: 20px;">
+        <div>
+            <h3>图像</h3>
+            <!-- 用于显示实时画面的 img 标签 -->
+            <img id="videoStream" style="width: 320px; height: 240px; background-color: #eee; border: 1px solid #ccc;" alt="等待视频信号..." />
+        </div>
+        <div>
+            <h3>音频</h3>
+            <p>收到的数据包总数: <span id="count">0</span></p>
+            <p>音频播放状态: <span id="audioStatus">等待中...</span></p>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let packetCount = 0;
+        
+        // 音频播放相关变量
+        let audioCtx;
+        let nextPlayTime = 0;
+
+        // 初始化 Web Audio API (由于浏览器安全策略，必须在用户点击事件中初始化)
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                console.log("AudioContext 已初始化，采样率:", audioCtx.sampleRate);
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // 播放 16-bit PCM 音频
+        function playPcm(buffer) {
+            // 将 16-bit PCM (Int16Array) 转换为 WebAudio 需要的 Float32 (-1.0 to 1.0)
+            const int16Data = new Int16Array(buffer);
+            const float32Data = new Float32Array(int16Data.length);
+            for (let i = 0; i < int16Data.length; i++) {
+                float32Data[i] = int16Data[i] / 32768.0;
+            }
+
+            // Android 端设置的是 44100Hz 单声道
+            const audioBuffer = audioCtx.createBuffer(1, float32Data.length, 44100);
+            audioBuffer.getChannelData(0).set(float32Data);
+
+            const source = audioCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioCtx.destination);
+
+            // 简单的音频无缝拼接调度 (防止卡顿或重叠)
+            const currentTime = audioCtx.currentTime;
+            if (nextPlayTime < currentTime) {
+                nextPlayTime = currentTime;
+            }
+            source.start(nextPlayTime);
+            nextPlayTime += audioBuffer.duration;
+            
+            document.getElementById("audioStatus").innerText = "正在播放音频...";
+            document.getElementById("audioStatus").style.color = "blue";
+        }
+
+        // 显示 JPEG 视频帧
+        function displayImage(buffer) {
+            // 如果 Android 端发送的是 JPEG 字节流，将其转为 Blob 并显示在 img 标签上
+            const blob = new Blob([buffer], { type: 'image/jpeg' });
+            const url = URL.createObjectURL(blob);
+            const imgTarget = document.getElementById("videoStream");
+            
+            imgTarget.onload = () => URL.revokeObjectURL(url); // 释放内存
+            imgTarget.src = url;
+        }
+
+        function connect() {
+            initAudio(); // 尝试初始化音频
+            
+            const url = document.getElementById("wsInput").value;
+            ws = new WebSocket(url);
+            ws.binaryType = 'arraybuffer'; // 接收二进制数据
+
+            ws.onopen = function() {
+                document.getElementById("status").innerText = "已连接！";
+                document.getElementById("status").style.color = "green";
+                packetCount = 0;
+            };
+
+            ws.onmessage = function(event) {
+                if (typeof event.data === "string") {
+                    console.log("收到文本消息:", event.data);
+                } else {
+                    packetCount++;
+                    document.getElementById("count").innerText = packetCount;
+                    
+                    // 接收到 ArrayBuffer 数据
+                    const buffer = event.data;
+                    const uint8Data = new Uint8Array(buffer);
+                    
+                    // 【更精准的判断】通过判断 JPEG 的文件头标识 (Magic Number: 0xFF, 0xD8) 
+                    // 来区分当前包是图像片段还是纯音频 PCM 流
+                    if (uint8Data.length >= 2 && uint8Data[0] === 0xFF && uint8Data[1] === 0xD8) {
+                        displayImage(buffer);
+                    } else {
+                        // 否则认为是音频数据
+                        if(audioCtx) {
+                            try {
+                                playPcm(buffer);
+                            } catch (e) {
+                                console.error("音频解析异常:", e);
+                            }
+                        }
+                    }
+                }
+            };
+
+            ws.onerror = function(error) {
+                console.error("发生错误:", error);
+            };
+
+            ws.onclose = function() {
+                document.getElementById("status").innerText = "已断开";
+                document.getElementById("status").style.color = "red";
+                nextPlayTime = 0;
+            };
+        }
+
+        function disconnect() {
+            if (ws) ws.close();
+        }
+    </script>
+</body>
+</html>
