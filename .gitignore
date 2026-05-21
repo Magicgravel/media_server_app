@@ -40,3 +40,6 @@ captures/
 keystore.properties
 signing.properties
 google-services.json
+
+
+test/frames
